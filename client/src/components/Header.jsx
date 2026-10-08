@@ -23,6 +23,10 @@ export function Header({ health, onRefresh }) {
     ? new Date(health.index.lastRefreshedAt).toLocaleTimeString() 
     : 'Ready';
 
+  const docsUrl = (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))
+    ? 'https://flock-urja-ops.onrender.com/docs'
+    : '/docs';
+
   return (
     <header className="app-header">
       <div className="brand-section">
@@ -54,7 +58,7 @@ export function Header({ health, onRefresh }) {
         </button>
 
         <a 
-          href="/docs" 
+          href={docsUrl} 
           target="_blank" 
           rel="noreferrer" 
           className="btn btn-secondary btn-sm"

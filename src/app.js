@@ -33,13 +33,20 @@ function createApp({ syncManager, portalLive, portalAuth }) {
   const clientDistPath = path.resolve(__dirname, '../client/dist');
   if (fs.existsSync(clientDistPath)) {
     app.use(express.static(clientDistPath));
+    app.get('/', (req, res, next) => {
+      if (req.headers.accept && req.headers.accept.includes('text/html')) {
+        return res.sendFile(path.join(clientDistPath, 'index.html'));
+      }
+      next();
+    });
   }
 
-  // Root landing endpoint
+  // Root landing endpoint (for API clients / curl / JSON)
   app.get('/', (req, res) => {
     res.json({
       name: 'Urja Meter Ops REST API Wrapper',
       version: '1.0.0',
+      dashboard: '/',
       documentation: '/docs',
       openapi: '/openapi.json',
       health: '/api/v1/health',

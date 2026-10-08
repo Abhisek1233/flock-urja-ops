@@ -9,6 +9,16 @@ A clean, modern, and resilient REST API wrapper and operational dashboard built 
 
 ---
 
+### 🚀 Live Deployments
+
+* **Frontend Web Dashboard (Vercel):** [https://flock-urja-ops.vercel.app](https://flock-urja-ops.vercel.app)
+* **Backend API Gateway (Render):** [https://flock-urja-ops.onrender.com](https://flock-urja-ops.onrender.com)
+* **Interactive API Docs (Swagger UI):** [https://flock-urja-ops.onrender.com/docs](https://flock-urja-ops.onrender.com/docs)
+* **OpenAPI 3.0 Specification:** [https://flock-urja-ops.onrender.com/openapi.json](https://flock-urja-ops.onrender.com/openapi.json)
+* **Service Health Check:** [https://flock-urja-ops.onrender.com/api/v1/health](https://flock-urja-ops.onrender.com/api/v1/health)
+
+---
+
 ## Table of Contents
 1. [Overview & Objective](#overview--objective)
 2. [Architecture & Project Structure](#architecture--project-structure)

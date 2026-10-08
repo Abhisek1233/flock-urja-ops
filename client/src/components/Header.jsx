@@ -24,8 +24,8 @@ export function Header({ health, onRefresh }) {
     : 'Ready';
 
   const docsUrl = (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app'))
-    ? 'https://flock-urja-ops.onrender.com/docs'
-    : '/docs';
+    ? 'https://flock-urja-ops.onrender.com/docs/'
+    : '/docs/';
 
   return (
     <header className="app-header">

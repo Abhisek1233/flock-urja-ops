@@ -1,0 +1,381 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Urja Meter Ops REST API Wrapper",
+    "description": "Production-grade REST API wrapper around the legacy Urja Meter Ops utility portal, providing unified meter listings, real-time consumption series, network hierarchy tree, and spatial proximity search.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Abhisek Behera"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    { "name": "Meters", "description": "Smart meter lookup, search, spatial queries, and consumption" },
+    { "name": "Hierarchy", "description": "Electrical distribution network hierarchy and lineage" },
+    { "name": "System", "description": "Service health, system stats, and cache synchronization" }
+  ],
+  "paths": {
+    "/api/v1/meters": {
+      "get": {
+        "tags": ["Meters"],
+        "summary": "List and filter smart meters",
+        "description": "Retrieve a paginated list of smart meters with optional multi-attribute filtering, substring search, and sorting.",
+        "parameters": [
+          { "name": "q", "in": "query", "description": "Substring search on meter ID or serial number", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "description": "Filter by installation status", "schema": { "type": "string", "enum": ["Installed", "Faulty", "Decommissioned"] } },
+          { "name": "make", "in": "query", "description": "Filter by meter manufacturer", "schema": { "type": "string", "enum": ["HPL", "Genus", "Secure", "Allied", "L&T"] } },
+          { "name": "phase", "in": "query", "description": "Filter by electrical phase type", "schema": { "type": "string", "enum": ["single", "three"] } },
+          { "name": "installType", "in": "query", "description": "Filter by installation type", "schema": { "type": "string", "enum": ["Whole Current", "CT Operated"] } },
+          { "name": "build", "in": "query", "description": "Filter by portal build schema version", "schema": { "type": "string", "enum": ["legacy", "v2"] } },
+          { "name": "dt", "in": "query", "description": "Filter by Distribution Transformer code (e.g. DT-001)", "schema": { "type": "string" } },
+          { "name": "zone", "in": "query", "description": "Filter by zone name or code", "schema": { "type": "string" } },
+          { "name": "circle", "in": "query", "description": "Filter by circle name or code", "schema": { "type": "string" } },
+          { "name": "division", "in": "query", "description": "Filter by division name or code", "schema": { "type": "string" } },
+          { "name": "substation", "in": "query", "description": "Filter by substation name or code", "schema": { "type": "string" } },
+          { "name": "feeder", "in": "query", "description": "Filter by feeder name or code", "schema": { "type": "string" } },
+          { "name": "sort", "in": "query", "description": "Sorting criteria formatted as field:order (e.g. meterId:asc, serialNo:desc)", "schema": { "type": "string", "default": "meterId:asc" } },
+          { "name": "page", "in": "query", "description": "Page number (1-based)", "schema": { "type": "integer", "default": 1, "minimum": 1 } },
+          { "name": "pageSize", "in": "query", "description": "Records per page", "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 100 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of smart meters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedMetersResponse"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/v1/meters/near": {
+      "get": {
+        "tags": ["Meters"],
+        "summary": "Find meters near geographic coordinates",
+        "description": "Search meters within a given radius using the Haversine great-circle distance formula.",
+        "parameters": [
+          { "name": "lat", "in": "query", "required": true, "description": "Center latitude (-90 to 90)", "schema": { "type": "number" } },
+          { "name": "lng", "in": "query", "required": true, "description": "Center longitude (-180 to 180)", "schema": { "type": "number" } },
+          { "name": "radiusKm", "in": "query", "description": "Search radius in kilometers", "schema": { "type": "number", "default": 5, "maximum": 100 } },
+          { "name": "limit", "in": "query", "description": "Maximum number of results to return", "schema": { "type": "integer", "default": 50, "maximum": 200 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Meters within radius sorted ascending by distance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "center": {
+                      "type": "object",
+                      "properties": {
+                        "lat": { "type": "number" },
+                        "lng": { "type": "number" }
+                      }
+                    },
+                    "radiusKm": { "type": "number" },
+                    "total": { "type": "integer" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/MeterNearRecord" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/400BadRequest" }
+        }
+      }
+    },
+    "/api/v1/meters/{id}": {
+      "get": {
+        "tags": ["Meters"],
+        "summary": "Get specific meter details",
+        "description": "Retrieve comprehensive details for a specific smart meter, including nameplate attributes, geographical coordinates, and complete hierarchy lineage.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Meter identifier (e.g. J100000)", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Meter detail record",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MeterRecord" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/404NotFound" }
+        }
+      }
+    },
+    "/api/v1/meters/{id}/consumption": {
+      "get": {
+        "tags": ["Meters"],
+        "summary": "Get meter consumption history",
+        "description": "Retrieve half-hourly energy consumption readings with calculated interval deltas, summary KPIs, and detected register/voltage anomalies.",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Meter identifier", "schema": { "type": "string" } },
+          { "name": "from", "in": "query", "description": "Start date (YYYY-MM-DD)", "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" } },
+          { "name": "to", "in": "query", "description": "End date (YYYY-MM-DD)", "schema": { "type": "string", "pattern": "^\\d{4}-\\d{2}-\\d{2}$" } },
+          { "name": "interval", "in": "query", "description": "Reading interval step (default 30m)", "schema": { "type": "string", "default": "30m" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Energy consumption time series and summary metrics",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ConsumptionResponse" }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/404NotFound" }
+        }
+      }
+    },
+    "/api/v1/hierarchy": {
+      "get": {
+        "tags": ["Hierarchy"],
+        "summary": "Retrieve organized network tree",
+        "description": "Returns the complete 7-tier distribution network tree (Zone -> Circle -> Division -> Subdivision -> Substation -> Feeder -> DT) with meter counts, status breakdowns, and data quality flags.",
+        "responses": {
+          "200": {
+            "description": "Distribution network tree",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HierarchyTreeResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/stats": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Get system statistics",
+        "description": "Aggregated dataset metrics across status, manufacturers, phase types, install types, build versions, and data quality anomalies.",
+        "responses": {
+          "200": {
+            "description": "System statistics overview",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/StatsResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Service health check",
+        "description": "Returns the operational health of the wrapper service, portal session status, and index cache freshness.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy and ready",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          },
+          "503": {
+            "description": "Service is degraded or uninitialized"
+          }
+        }
+      }
+    },
+    "/api/v1/index/refresh": {
+      "post": {
+        "tags": ["System"],
+        "summary": "Trigger index refresh",
+        "description": "Initiates an on-demand re-sync of the in-memory meter index from the legacy portal using the HMAC bulk export.",
+        "responses": {
+          "200": {
+            "description": "Refresh completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string" },
+                    "success": { "type": "boolean" },
+                    "count": { "type": "integer" },
+                    "source": { "type": "string" },
+                    "lastRefreshedAt": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MeterRecord": {
+        "type": "object",
+        "properties": {
+          "meterId": { "type": "string", "example": "J100000" },
+          "serialNo": { "type": "string", "example": "SE33962" },
+          "make": { "type": "string", "example": "HPL" },
+          "phaseType": { "type": "string", "example": "single" },
+          "installStatus": { "type": "string", "example": "Decommissioned" },
+          "installType": { "type": "string", "example": "Whole Current" },
+          "build": { "type": "string", "example": "legacy" },
+          "dtCode": { "type": "string", "example": "DT-001" },
+          "geo": {
+            "type": "object",
+            "properties": {
+              "lat": { "type": "number", "example": 26.938961 },
+              "lng": { "type": "number", "example": 75.830956 }
+            }
+          },
+          "hierarchy": {
+            "type": "object",
+            "properties": {
+              "levels": { "type": "object" },
+              "path": { "type": "string", "example": "Jaipur Zone 1 / Circle 1 / Division 1 / Subdivision 1 / Substation 1 / Feeder 1 / Malviya Nagar DT 1" },
+              "dataQuality": { "type": "object" }
+            }
+          }
+        }
+      },
+      "MeterNearRecord": {
+        "allOf": [
+          { "$ref": "#/components/schemas/MeterRecord" },
+          {
+            "type": "object",
+            "properties": {
+              "distanceKm": { "type": "number", "example": 1.425 }
+            }
+          }
+        ]
+      },
+      "PaginatedMetersResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MeterRecord" }
+          },
+          "total": { "type": "integer", "example": 403 },
+          "page": { "type": "integer", "example": 1 },
+          "pageSize": { "type": "integer", "example": 20 },
+          "totalPages": { "type": "integer", "example": 21 }
+        }
+      },
+      "ConsumptionReading": {
+        "type": "object",
+        "properties": {
+          "timestamp": { "type": "string", "format": "date-time", "example": "2026-06-23T23:30:00+05:30" },
+          "rawTimestamp": { "type": "string", "example": "23/06/2026 23:30" },
+          "kwh": { "type": "number", "example": 48438.74 },
+          "kvah": { "type": "number", "example": 52313.84 },
+          "voltR": { "type": "number", "example": 226 },
+          "deltaKwh": { "type": "number", "example": 0.42 },
+          "deltaKvah": { "type": "number", "example": 0.45 },
+          "anomalies": { "type": "array", "items": { "type": "object" } }
+        }
+      },
+      "ConsumptionResponse": {
+        "type": "object",
+        "properties": {
+          "meterId": { "type": "string", "example": "J100000" },
+          "serialNo": { "type": "string", "example": "SE33962" },
+          "queryWindow": { "type": "object" },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "totalReadings": { "type": "integer", "example": 337 },
+              "totalKwhDelta": { "type": "number", "example": 142.05 },
+              "avgIntervalKwh": { "type": "number", "example": 0.42 },
+              "peakIntervalKwh": { "type": "number", "example": 0.43 },
+              "avgVoltage": { "type": "number", "example": 229.8 },
+              "minVoltage": { "type": "number", "example": 220 },
+              "maxVoltage": { "type": "number", "example": 240 }
+            }
+          },
+          "anomalies": { "type": "array", "items": { "type": "object" } },
+          "data": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ConsumptionReading" }
+          }
+        }
+      },
+      "HierarchyTreeResponse": {
+        "type": "object",
+        "properties": {
+          "tree": { "type": "array", "items": { "type": "object" } },
+          "summary": { "type": "object" }
+        }
+      },
+      "StatsResponse": {
+        "type": "object",
+        "properties": {
+          "total": { "type": "integer", "example": 403 },
+          "byStatus": { "type": "object" },
+          "byMake": { "type": "object" },
+          "byPhase": { "type": "object" },
+          "byInstallType": { "type": "object" },
+          "byBuild": { "type": "object" },
+          "dataQuality": { "type": "object" }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "healthy" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "index": { "type": "object" },
+          "portalSession": { "type": "object" }
+        }
+      },
+      "ErrorEnvelope": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string", "example": "BAD_REQUEST" },
+              "message": { "type": "string", "example": "Invalid parameters" },
+              "details": { "type": "object" }
+            },
+            "required": ["code", "message"]
+          }
+        }
+      }
+    },
+    "responses": {
+      "400BadRequest": {
+        "description": "Validation error or invalid query parameter",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+          }
+        }
+      },
+      "404NotFound": {
+        "description": "Requested resource was not found",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorEnvelope" }
+          }
+        }
+      }
+    }
+  }
+}

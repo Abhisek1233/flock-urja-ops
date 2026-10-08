@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://flock-urja-ops.onrender.com/api/:path*"
+    },
+    {
+      "source": "/openapi.json",
+      "destination": "https://flock-urja-ops.onrender.com/openapi.json"
+    },
+    {
+      "source": "/docs/:path*",
+      "destination": "https://flock-urja-ops.onrender.com/docs/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
